@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Porównanie danych OSM z WTP</title>
     <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+    <link rel="stylesheet" href="filters.css">
 </head>
 <body>
     <p>
         Na tej stronie można znaleźć porównanie danych transportu publicznego OpenStreetMap oraz Warszawskiego Transportu Publicznego.
-        Strona <a href="https://wtp.waw.pl"/>wtp.waw.pl</a> ma czasami błędy. Nie należy ślepo wierzyć i kopiować.
+        Strona <a href="https://wtp.waw.pl">wtp.waw.pl</a> ma czasami błędy. Nie należy ślepo wierzyć i kopiować.
         Nie zaleca się tworzyć zmian krótkoterminowych np. na weekend, na 1 listopada.
         Dane z OSM są aktualizowane co godzinę, WTP raz na dobę.
-        Rozkład WTP brany jest z pierwszego dnia kiedy dana linia jest dostępna np. poniedziałek dla linii niejeżdżącej w weekendy.
+        Rozkład WTP brany jest z pierwszego dnia, kiedy dana linia jest dostępna np. poniedziałek dla linii niejeżdżącej w weekendy.
         Więcej szczegółów <a href="https://starsep.com/pl/posts/osm-wtp/">w tym artykule</a>.
         W razie problemów proszę o kontakt na <a href="https://osm.org/message/new/starsep">OSM</a>.
     </p>
@@ -26,8 +27,13 @@
         {% endif %}
     {% endfor %}
     </span>
+    <h1>Filtry (kliknij, aby schować)</h1>
+    <input type="checkbox" id="hide-route-tram"><label for="hide-route-tram">Trasy tramwajowe</label>
+    <input type="checkbox" id="hide-route-train"><label for="hide-route-train">Trasy kolejowe</label>
+    <input type="checkbox" id="hide-route-bus" name="hide-route-bus"><label for="hide-route-bus">Trasy autobusowe</label>
     {% for ref, result in renderResults.items() %}
         {% if result["error"] %}
+        <div class="route-{{ refToRouteType[ref] }}">
         <h1 id="{{ ref }}">Wyniki dla {{ ref }}</h1>
         {% for routeResult in result["routeResults"] %}
         {% set route = routeResult.route %}
@@ -48,8 +54,8 @@
                 </tr>
             {% endfor %}
         </table>
-        <br/>
         {% endfor %}
+        </div>
     {% endif %}
     {% endfor %}
     <h1>Inne błędy</h1>

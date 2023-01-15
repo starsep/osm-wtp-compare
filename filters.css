@@ -1,0 +1,11 @@
+#hide-route-bus:checked ~ .route-bus {
+    display: none;
+}
+
+#hide-route-tram:checked ~ .route-tram {
+    display: none;
+}
+
+#hide-route-train:checked ~ .route-train {
+    display: none;
+}

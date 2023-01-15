@@ -65,6 +65,7 @@ class RouteResult:
 
 
 results: Dict[str, List[RouteResult]] = {}
+refToRouteType: Dict[str, str] = {}
 
 MISSING_REF = "-"
 
@@ -211,6 +212,7 @@ def processData():
             or tags["route"] == "tracks"
         ):
             continue
+        refToRouteType[routeRef] = tags["route"]
         if "url" not in tags:
             missingRouteUrl.add((elementUrl(route), tags.get("name", "")))
             continue
@@ -418,6 +420,7 @@ def processData():
         f.write(
             template.render(
                 refs=refs,
+                refToRouteType=refToRouteType,
                 startTime=startTime.isoformat(timespec="seconds"),
                 generationSeconds=generationSeconds,
                 renderResults=renderResults,
