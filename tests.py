@@ -1,7 +1,10 @@
 import unittest
 
+import httpx
+
 from distance import geoDistance, GeoPoint
-from warsaw.wtpScraper import mapWtpStop
+from logger import log_duration
+from warsaw.wtpScraper import mapWtpStop, cachedParseWebsite, manualHtmlParsing
 
 
 class OSMWTPCompareTests(unittest.TestCase):
@@ -26,3 +29,25 @@ class GeoDistanceTests(unittest.TestCase):
             5482,
             delta=20,
         )
+
+
+class ParseHTMLResultTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with httpx.Client() as client:
+            cls.htmlContent = client.get(
+                url="https://www.wtp.waw.pl/rozklady-jazdy/?wtp_md=3&wtp_ln=512&wtp_dr=A"
+            ).text
+
+    def test_m(self):
+        # warmup
+        for i in range(20):
+            cachedParseWebsite(self.htmlContent, "", None)
+        for i in range(20):
+            manualHtmlParsing(self.htmlContent, "", None)
+
+        with log_duration("bs4"):
+            bs4Result = cachedParseWebsite(self.htmlContent, "", None)
+        with log_duration("manual"):
+            manualResult = manualHtmlParsing(self.htmlContent, "", None)
+        self.assertEqual(bs4Result, manualResult)

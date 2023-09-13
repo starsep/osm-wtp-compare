@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from typing import Optional, Tuple, List, Set
 from urllib import parse
@@ -114,6 +115,102 @@ def scrapeLink(link: str, httpClient: Client) -> Optional[WTPResult]:
     wtpManyLastStops.update(cachedResult.manyLastStops)
     wtpMissingLastStopRefNames.update(cachedResult.missingLastStopRefNames)
     return cachedResult.wtpResult
+
+
+# Note: uses regexes, so it might break when formatting will be changed
+def manualHtmlParsing(
+    htmlContent: str, inputUrl: str, httpClient: Client
+) -> CachedWTPResult:
+    stopRefs: Set[str] = set()
+    seenLinks: Set[Tuple[str, str, str]] = set()
+    missingLastStop: Set[str] = set()
+    manyLastStops: Set[Tuple[str, str]] = set()
+    missingLastStopRefNames: Set[Tuple[str, str]] = set()
+
+    # TODO: share compiled regexes
+    anyLinkPattern = re.compile('<a[^>]* href="(.*?)"')
+    activeLinkPattern = re.compile(
+        '<a[^>]* href="(?P<href>.*?)"[^>]*class="timetable-link[^"]*active[^"]*".*&nbsp;(?P<name>.*)&nbsp;.*</a>'
+    )
+    # div.timetable-route-point.name.active.follow.disabled
+    timetableRoutePointPattern = re.compile(
+        '<div[^>]*class="(?P<class>[^"]*timetable-route-point[^"]*)"[^>]*(?P<divChildren>.*?)</div>'
+    )
+    lastStopPattern = re.compile("&nbsp;(?P<name>.*)&nbsp;")
+
+    # TODO: handle
+    # if variantUnavailable in htmlContent or lineUnavailable in htmlContent:
+    #     return CachedWTPResult(
+    #         wtpResult=WTPResult(
+    #             unavailable=True, detour=False, new=False, short=False, stops=[]
+    #         ),
+    #         stopRefs=stopRefs,
+    #         seenLinks=seenLinks,
+    #         missingLastStop=missingLastStop,
+    #         manyLastStops=manyLastStops,
+    #         missingLastStopRefNames=missingLastStopRefNames,
+    #     )
+    # unavailableDiv = parser.select(lineUnavailableTodayPattern)
+    # if len(unavailableDiv) > 0:
+    #     anotherDateLink = unavailableDiv[0].select("a")[0].get("href")
+    #     anotherDateLinkArgs = parseLinkArguments(anotherDateLink)
+    #     if wtpDateArg in anotherDateLinkArgs:
+    #         return cachedScrapeLink(
+    #             inputUrl + f"&{wtpDateArg}={anotherDateLinkArgs[wtpDateArg][0]}",
+    #             httpClient=httpClient,
+    #         )
+    def handleAnyLink(url: str):
+        if wtpDomain not in url:
+            return
+        parsedUrl = WTPLink.parseWTPRouteLink(url)
+        if parsedUrl is not None:
+            seenLinks.add(parsedUrl.toTuple())
+
+    stops = []
+    lastStops = []
+    routeClasses = set()
+    for line in htmlContent.split("\n"):
+        for match in anyLinkPattern.findall(line):
+            handleAnyLink(match)
+        if match := activeLinkPattern.search(line):
+            stopName = match["name"]
+            stopLink = match["href"]
+            stopLinkArgs = parseLinkArguments(stopLink)
+            stopRef = stopLinkArgs["wtp_st"][0] + stopLinkArgs["wtp_pt"][0]
+            stopRef, stopName = mapWtpStop(stopRef, stopName)
+            stopRefs.add(stopRef)
+            stops.append(StopData(name=stopName, ref=stopRef))
+        elif match := timetableRoutePointPattern.search(line):
+            classes = match["class"].split(" ")
+            routeClasses.update(classes)
+            if "disabled" in routeClasses:
+                if lastStopMatch := lastStopPattern.search(match["divChildren"]):
+                    lastStops.append(lastStopMatch["name"])
+    # handle last stop without link
+    if len(lastStops) == 0:
+        missingLastStop.add(inputUrl)
+    if len(lastStops) > 1:
+        manyLastStops.add((inputUrl, str(lastStops)))
+    for stopName in lastStops[:1]:
+        if len(stops) == 0:
+            logger.error(f"Empty stops: {inputUrl}")
+            continue
+        stopRefs.add(MISSING_REF)
+        stops.append(StopData(name=stopName, ref=MISSING_REF))
+    return CachedWTPResult(
+        WTPResult(
+            unavailable=False,
+            detour="detour" in routeClasses,
+            new="new" in routeClasses,
+            short="short" in routeClasses,
+            stops=stops,
+        ),
+        stopRefs=stopRefs,
+        seenLinks=seenLinks,
+        missingLastStop=missingLastStop,
+        manyLastStops=manyLastStops,
+        missingLastStopRefNames=missingLastStopRefNames,
+    )
 
 
 def cachedParseWebsite(
